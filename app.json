@@ -5,7 +5,10 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "backgroundColor": "#f4ecd4",
+    "splash": {
+      "backgroundColor": "#f4ecd4",
+      "resizeMode": "contain"
+    },
     "android": {
       "package": "com.nourapps.khashabafamilytree",
       "versionCode": 1
