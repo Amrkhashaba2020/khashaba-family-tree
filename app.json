@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "شجرة عائلة خشبة",
+    "slug": "khashaba-family-tree",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#f4ecd4",
+    "android": {
+      "package": "com.nourapps.khashabafamilytree",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#f4ecd4"
+      }
+    }
+  }
+}
