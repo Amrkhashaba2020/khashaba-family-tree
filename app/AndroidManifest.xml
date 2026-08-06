@@ -7,12 +7,14 @@
 
     <application
         android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="شجرة عائلة خشبه"
         android:supportsRtl="true"
         android:usesCleartextTraffic="true">
 
         <activity
-            android:name="MainActivity"
+            android:name="com.khashbah.familytree.MainActivity"
             android:exported="true"
             android:configChanges="orientation|screenSize|keyboardHidden"
             android:screenOrientation="unspecified">
@@ -21,6 +23,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="com.khashbah.familytree.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 
 </manifest>
