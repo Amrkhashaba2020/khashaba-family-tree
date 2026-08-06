@@ -1267,11 +1267,25 @@ document.getElementById('bookNext').addEventListener('click', ()=>{
 document.getElementById('bookShare').addEventListener('click', async ()=>{
   const shareTitle = 'الكتاب الأصلى — نسب عائلة خشبه بسمالوط';
   const shareText = 'صفحة ' + toArabicNumFull(bookIdx+1) + ' من ' + toArabicNumFull(BOOK_TOTAL) + ' — من الكتاب الأصلى لنسب عائلة خشبه بسمالوط';
+  const dataUrl = BOOK_PAGES[bookIdx];
+  const filename = 'كتاب-خشبه-صفحة-' + (bookIdx+1) + '.jpg';
+
+  // داخل تطبيق أندرويد: نستخدم الجسر الأصلي (يفتح قائمة المشاركة الحقيقية
+  // للجهاز)، لأن Web Share API غير مدعومة أصلاً داخل WebView.
+  if (window.AndroidShare && typeof window.AndroidShare.shareImageBase64 === 'function') {
+    try {
+      const base64 = dataUrl.split(',')[1] || dataUrl;
+      window.AndroidShare.shareImageBase64(base64, filename, shareTitle);
+    } catch (err) {
+      alert('تعذّرت المشاركة، حاول مرة أخرى.');
+    }
+    return;
+  }
+
   try {
-    const dataUrl = BOOK_PAGES[bookIdx];
     const res = await fetch(dataUrl);
     const blob = await res.blob();
-    const file = new File([blob], 'كتاب-خشبه-صفحة-' + (bookIdx+1) + '.jpg', { type: blob.type || 'image/jpeg' });
+    const file = new File([blob], filename, { type: blob.type || 'image/jpeg' });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       await navigator.share({ files: [file], title: shareTitle, text: shareText });
       return;
