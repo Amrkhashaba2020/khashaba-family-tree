@@ -1,4 +1,39 @@
-// Top-level build file
 plugins {
-    id 'com.android.application' version '8.2.0' apply false
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.khashbah.familytree'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.khashbah.familytree"
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    // مسارات مبسّطة داخل app/ (بدون app/src/main/...) لكن ضمن موديول
+    // فرعى قياسى (app/) — وهذا الإعداد شائع الاستخدام وموثّق رسميًا،
+    // بعكس محاولة تطبيق البلجن على المشروع الجذر مباشرة (التى تسببت
+    // فى خطأ implicit dependency فى المحاولة السابقة).
+    sourceSets {
+        main {
+            manifest.srcFile 'AndroidManifest.xml'
+            java.srcDirs = ['java']
+            res.srcDirs = ['res']
+            assets.srcDirs = ['assets']
+        }
+    }
 }
