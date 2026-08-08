@@ -667,7 +667,7 @@
           <svg class="lines" id="lines"></svg>
         </div>
       </div>
-      <button id="printTreeBtn" style="display:none;">🖼️ حفظ / مشاركة الشجرة</button>
+      <!-- تم إلغاء زر حفظ/مشاركة الشجرة بناءً على طلب المستخدم -->
       <div class="hint">📱 أدر موبايلك أفقيًا لأفضل عرض — اضغط على أى بطاقة لفتح أو طى أبنائها — استخدم إصبعين للتكبير</div>
     </section>
 
@@ -1111,6 +1111,103 @@ function assignPos(n, xStart, depth){
   return cursor;
 }
 
+// ---------------- تخطيط مضغوط (Contour Layout) ----------------
+// المشكلة فى layoutWidth/assignPos أعلاه: كل فرع يأخذ عرضًا بعدد أوراقه
+// فقط، لكن العقدة الأب نفسها تُوضع فى *مركز* أبنائها — فلو كان لعقدة
+// أخ صغير (بلا أبناء) بجوار عقدة أخرى بها عشرات الأحفاد، تنتهي عقدة الأخ
+// الكبير غالبًا بعيدة عن حافة نطاقها (لأنها فى المنتصف)، فيظهر فراغ كبير
+// غير ضروري بين صندوقي الأخوين رغم عدم وجود أي "هدر" فعلي فى المساحة.
+// الحل الصحيح المعروف (بأسلوب Reingold–Tilford المبسّط) هو تتبّع "الحد
+// الخارجي" (contour) الفعلي لكل فرع عند كل عمق، وتقريب كل فرع من الذي
+// يليه لأقصى درجة ممكنة دون تداخل حقيقي — بدلاً من افتراض عرض ثابت.
+function contourLayout(n){
+  if(!n.children || n.children.length===0 || n.collapsed){
+    n._x = 0;
+    n._cLeft = [0];
+    n._cRight = [0];
+    return;
+  }
+
+  n.children.forEach(contourLayout);
+
+  const MIN_GAP = 1; // أقل مسافة بوحدات UNIT_X بين حدّي فرعين متجاورين
+
+  const offsets = [0];
+  for(let i=1;i<n.children.length;i++){
+    let shift = 0;
+    for(let j=0;j<i;j++){
+      const leftC = n.children[j]._cRight, leftOff = offsets[j];
+      const rightC = n.children[i]._cLeft;
+      const depth = Math.min(leftC.length, rightC.length);
+      for(let d=0; d<depth; d++){
+        const need = (leftOff + leftC[d]) - rightC[d] + MIN_GAP;
+        if(need > shift) shift = need;
+      }
+    }
+    offsets.push(shift);
+  }
+
+  const firstX = offsets[0];
+  const lastX = offsets[offsets.length-1];
+  const mid = (firstX + lastX) / 2;
+
+  n.children.forEach((c, i) => shiftSubtree(c, offsets[i] - mid));
+
+  n._x = 0;
+
+  // دمج حدود الأبناء لتكوين حد الأب: أدنى قيمة يسار وأقصى قيمة يمين عند
+  // كل عمق نسبي، عبر كل الأبناء (وليس أول/آخر ابن فقط) لتفادي أي تداخل
+  // فى الحالات غير المنتظمة.
+  const maxDepth = Math.max(...n.children.map(c => Math.max(c._cLeft.length, c._cRight.length)));
+  const mergedLeft = [], mergedRight = [];
+  for(let d=0; d<maxDepth; d++){
+    let lv = Infinity, rv = -Infinity;
+    n.children.forEach(c => {
+      if(d < c._cLeft.length) lv = Math.min(lv, c._cLeft[d]);
+      if(d < c._cRight.length) rv = Math.max(rv, c._cRight[d]);
+    });
+    if(lv !== Infinity) mergedLeft.push(lv);
+    if(rv !== -Infinity) mergedRight.push(rv);
+  }
+  n._cLeft = [0, ...mergedLeft];
+  n._cRight = [0, ...mergedRight];
+}
+
+function shiftSubtree(n, dx){
+  n._x += dx;
+  n._cLeft = n._cLeft.map(v => v+dx);
+  n._cRight = n._cRight.map(v => v+dx);
+  if(n.children && !n.collapsed){ n.children.forEach(c => shiftSubtree(c, dx)); }
+}
+
+// يحوّل إحداثيات contourLayout (نسبية، قد تكون سالبة) إلى نفس نظام
+// الإحداثيات المستخدم فى بقية الكود (n._x بالنسب الموجبة، n._y بعمق
+// الجيل)، ويحسب العرض الكلي المطلوب totalW بوحدات UNIT_X.
+function assignPosCompact(root){
+  contourLayout(root);
+  function setDepth(n, depth){
+    n._y = depth;
+    if(n.children && !n.collapsed){ n.children.forEach(c => setDepth(c, depth+1)); }
+  }
+  setDepth(root, 0);
+  let minX = Infinity;
+  (function findMin(n){
+    if(n._x < minX) minX = n._x;
+    if(n.children && !n.collapsed){ n.children.forEach(findMin); }
+  })(root);
+  const shift = 0.5 - minX;
+  (function applyShift(n){
+    n._x += shift;
+    if(n.children && !n.collapsed){ n.children.forEach(applyShift); }
+  })(root);
+  let maxX = -Infinity;
+  (function findMax(n){
+    if(n._x > maxX) maxX = n._x;
+    if(n.children && !n.collapsed){ n.children.forEach(findMax); }
+  })(root);
+  return maxX + 0.5; // totalW بوحدات UNIT_X
+}
+
 let scale = 1, panX = 40, panY = 30;
 const ROTATE_DEG = 90; // rotate the whole tree so it reads correctly when you turn the phone sideways
 const viewport = document.getElementById('viewport');
@@ -1191,13 +1288,6 @@ function render(){
     const px = n._x * UNIT_X;
     const py = n._y * ROW_H + 20;
 
-    if(parent){
-      const ppx = parent._x * UNIT_X;
-      const ppy = parent._y * ROW_H + 20 + NODE_H_APPROX;
-      const midY = (ppy + py) / 2;
-      pathParts.push('M '+ppx+' '+ppy+' C '+ppx+' '+midY+', '+px+' '+midY+', '+px+' '+py);
-    }
-
     const div = document.createElement('div');
     div._treeNode = n; // مرجع للعقدة الفعلية حتى نستطيع تمييز الأسماء المكررة
     const hasKids = n.children && n.children.length;
@@ -1223,6 +1313,27 @@ function render(){
     canvas.appendChild(div);
 
     if(hasKids && !n.collapsed){
+      // خطوط وصل مستقيمة (أفقية ورأسية فقط): خط رأسي واحد من أسفل الأب
+      // حتى خط أفقي مشترك بعرض كل الأبناء، ثم خط رأسي من هذا الخط لأعلى
+      // كل ابن على حدة — بدلاً من المنحنى المفرد لكل زوج أب/ابن.
+      const parentBottomY = py + NODE_H_APPROX;
+      const childTopY = n.children[0]._y * ROW_H + 20;
+      const busY = (parentBottomY + childTopY) / 2;
+
+      pathParts.push('M '+px+' '+parentBottomY+' L '+px+' '+busY);
+
+      if(n.children.length > 1){
+        const xs = n.children.map(c => c._x * UNIT_X);
+        const firstX = Math.min(...xs), lastX = Math.max(...xs);
+        pathParts.push('M '+firstX+' '+busY+' L '+lastX+' '+busY);
+      }
+
+      n.children.forEach(c => {
+        const cx = c._x * UNIT_X;
+        const cy = c._y * ROW_H + 20;
+        pathParts.push('M '+cx+' '+busY+' L '+cx+' '+cy);
+      });
+
       n.children.forEach(c => walk(c, n));
     }
   }
@@ -1340,20 +1451,45 @@ async function exportTreeImage(){
   const maxNodeH = Math.max(...Array.from(nodeMeta.values()).map(m => m.h));
   const totalH = (maxDepth+1) * ROW_H + maxNodeH + 20;
 
-  const FRAME_PAD_TOP = 130, FRAME_PAD_SIDE = 90, FRAME_PAD_BOTTOM = 110;
+  // نسب حدود صورة البرواز نفسها — مقاسة مباشرة من ملف الصورة (وليست
+  // أرقامًا تقديرية)، لأن الخط المزدوج الذهبي يقع قريبًا جدًا من الحواف
+  // (~3.5% فقط من الارتفاع)، وأي قيمة تقديرية بعيدة عن هذا كانت تجعل
+  // العنوان يتداخل مع خط البرواز فى الحالات شديدة الاتساع أو شديدة الطول.
+  const TOP_BORDER_FRAC = 0.035, BOTTOM_BORDER_FRAC = 0.038, SIDE_BORDER_FRAC = 0.035;
+
+  const FRAME_PAD_TOP = 190, FRAME_PAD_BOTTOM = 110;
   const TITLE_H = 70, BRANDING_H = 70;
 
-  const W = totalW + FRAME_PAD_SIDE*2;
+  const W = totalW + (totalW*SIDE_BORDER_FRAC + 40)*2;
   let H = totalH + FRAME_PAD_TOP + FRAME_PAD_BOTTOM + TITLE_H + BRANDING_H;
 
-  // سقف أمان لنسبة عرض:ارتفاع البرواز — بدون هذا، شجرة عريضة جدًا (كل
-  // الفروع مفتوحة) كانت تُنتج صورة نهائية بنسبة تمدد فاحشة (مثلاً 20:1)،
-  // فتظهر زخرفة البرواز نفسها ممطوطة/مكسورة الشكل تمامًا وغير مفهومة.
-  // بفرض حد أقصى معقول لهذه النسبة، تبقى صورة البرواز سليمة الشكل دائمًا،
-  // وتُصغَّر الشجرة نفسها أكثر بدلاً من ذلك لتناسب هذا الإطار المعقول.
-  const MAX_FRAME_ASPECT = 2.3;
-  const minH = W / MAX_FRAME_ASPECT;
+  // سقف أمان لنسبة عرض:ارتفاع البرواز فى الاتجاهين — بدون هذا، شجرة
+  // عريضة جدًا (كل الفروع مفتوحة) كانت تُنتج صورة ممطوطة أفقيًا بشكل
+  // مكسور، وشجرة بسيطة قليلة الفروع (لكن بأجيال كثيرة) كانت تُنتج صورة
+  // رأسية (طولية) رغم أن البرواز نفسه مصمم أفقيًا دائمًا.
+  const MAX_FRAME_ASPECT = 1.6, MIN_FRAME_ASPECT = 1.25;
+  const minH = W / MAX_FRAME_ASPECT, maxH = W / MIN_FRAME_ASPECT;
   if (H < minH) H = minH;
+  if (H > maxH) H = maxH;
+
+  // نحسب مواضع العنوان والبصمة ومنطقة الشجرة بناءً على نسب حدود البرواز
+  // الفعلية أعلاه مباشرة (وليس بإعادة تحجيم قيم تقديرية قديمة)، فتبقى
+  // النتيجة صحيحة دائمًا مهما تغيّر شكل الصورة النهائي.
+  const padSide = W*SIDE_BORDER_FRAC + 40;
+  const topBorderY = H * TOP_BORDER_FRAC;
+  const bottomBorderY = H * (1 - BOTTOM_BORDER_FRAC);
+
+  const titleFontSize = Math.max(18, topBorderY * 0.55);
+  const titleY = Math.max(topBorderY * 0.78, titleFontSize * 0.85);
+  const contentTop = Math.max(topBorderY, titleY) + titleFontSize * 1.35;
+
+  const brandFontSize = Math.max(9, (H - bottomBorderY) * 0.3);
+  const brandIconSize = brandFontSize * 1.7;
+  const brandY = Math.min(
+    bottomBorderY + (H - bottomBorderY) * 0.32,
+    H - brandFontSize * 1.9 - brandIconSize
+  );
+  const contentBottom = Math.min(bottomBorderY, brandY) - (H - bottomBorderY) * 0.15;
 
   // سقف أمان لحجم الصورة الناتجة: شجرة كبيرة جدًا (كل الفروع مفتوحة) قد
   // تنتج صورة بعشرات ملايين البكسلات، وهو ما قد يسبب نفاد الذاكرة أو فشل
@@ -1387,14 +1523,14 @@ async function exportTreeImage(){
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#1f4a3d';
-  ctx.font = 'bold 52px "Aref Ruqaa", serif';
-  ctx.fillText('شجرة عائلة خشبه بسمالوط', W / 2, FRAME_PAD_TOP - 45);
+  ctx.font = 'bold ' + titleFontSize + 'px "Aref Ruqaa", serif';
+  ctx.fillText('شجرة عائلة خشبه بسمالوط', W / 2, titleY);
 
-  const treeAreaW = W - FRAME_PAD_SIDE*2;
-  const treeAreaH = H - FRAME_PAD_TOP - FRAME_PAD_BOTTOM - TITLE_H - BRANDING_H;
+  const treeAreaW = W - padSide*2;
+  const treeAreaH = contentBottom - contentTop;
   const fitScale = Math.min(treeAreaW/totalW, treeAreaH/totalH);
-  const offsetX = FRAME_PAD_SIDE + (treeAreaW - totalW*fitScale)/2;
-  const offsetY = FRAME_PAD_TOP + TITLE_H + (treeAreaH - totalH*fitScale)/2;
+  const offsetX = padSide + (treeAreaW - totalW*fitScale)/2;
+  const offsetY = contentTop + (treeAreaH - totalH*fitScale)/2;
 
   ctx.save();
   ctx.translate(offsetX, offsetY);
@@ -1487,18 +1623,17 @@ async function exportTreeImage(){
   drawNodes(treeData);
   ctx.restore();
 
-  const brandY = H - FRAME_PAD_BOTTOM;
   ctx.strokeStyle = '#b8892b';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(FRAME_PAD_SIDE, brandY - 14);
-  ctx.lineTo(W - FRAME_PAD_SIDE, brandY - 14);
+  ctx.moveTo(padSide, brandY - brandFontSize*0.9);
+  ctx.lineTo(W - padSide, brandY - brandFontSize*0.9);
   ctx.stroke();
 
   const brandText = 'شجرة عائلة خشبه بسمالوط — تطبيق الجوال: play.google.com/store/apps/details?id=com.khashbah.familytree — تصميم: عمرو خشبه';
-  ctx.font = '13px "Noto Naskh Arabic", serif';
+  ctx.font = brandFontSize + 'px "Noto Naskh Arabic", serif';
   ctx.direction = 'rtl';
-  const iconSize = 26;
+  const iconSize = brandIconSize;
   const textW = ctx.measureText(brandText).width;
   const groupStart = (W - textW - iconSize - 8) / 2;
 
@@ -1509,7 +1644,7 @@ async function exportTreeImage(){
   }
   ctx.fillStyle = '#444';
   ctx.textAlign = 'left';
-  ctx.fillText(brandText, groupStart + iconSize + 8, brandY + 19);
+  ctx.fillText(brandText, groupStart + iconSize + 8, brandY + brandFontSize*1.4);
 
   return canvas.toDataURL('image/jpeg', 0.92);
 }
@@ -1544,7 +1679,7 @@ async function printTree(){
   }
 }
 
-document.getElementById('printTreeBtn').addEventListener('click', printTree);
+// زر حفظ/مشاركة الشجرة أُلغي — لم يعد هناك مستمع نقر مرتبط به.
 
 // ---------------- pan & zoom ----------------
 let dragging = false, lastX=0, lastY=0;
