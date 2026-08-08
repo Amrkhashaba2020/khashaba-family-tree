@@ -236,16 +236,28 @@
 
   #printArea{ display:none; }
   @media print {
+    /* هذا السطر يبطل تأثير قاعدة @media(orientation:landscape) أعلاه
+       (المخصصة لعرض الجوال، وتضيف padding لأسفل/جوانب body) — كانت هذه
+       القاعدة تُطبَّق أيضًا أثناء الطباعة لأن صفحة الطباعة نفسها بشكل
+       أفقي landscape، فتقتطع جزءًا من ارتفاع الصفحة المتاح للشجرة دون
+       أن يظهر ذلك بوضوح، وهو السبب الجذري لكل مشاكل عدم امتلاء الصفحة. */
+    body{ padding:0 !important; margin:0 !important; }
     body > *:not(#printArea){ display:none !important; }
     #printArea{
       display:block !important;
+      position:absolute !important;
+      top:0; left:0; right:0; bottom:0;
     }
     #printFrame{
       position:relative;
+      width: 100%;
+      height: 100%;
       padding: 110px 95px 90px;
       background:#fdfaf1;
       box-sizing:border-box;
       overflow:hidden;
+      display:flex;
+      flex-direction:column;
     }
     #printFrameArt{
       position:absolute; inset:0;
@@ -256,19 +268,36 @@
     }
     #printTitle{
       position:relative; z-index:2;
-      text-align:center;
+      flex: 0 0 auto;
+      width: 100%;
+      text-align:right;
+      margin-right: 100px;
+      box-sizing:border-box;
       font-family:'Aref Ruqaa', serif;
       font-size: 30px;
       font-weight:700;
       color:#1f4a3d;
       margin-bottom:16px;
     }
-    #printCanvasWrap{ position:relative; z-index:2; overflow:hidden; margin:0 auto; }
-    #printCanvas{ position:relative; }
+    #printCanvasWrap{
+      position:relative; z-index:2; overflow:hidden;
+      flex: 1 1 auto;
+      margin:0 auto;
+    }
+    #printCanvas{ position:absolute; flex-shrink:0; }
     #printCanvas .node{
       box-shadow:none !important;
       border-width: 2.4px !important;
       border-color: #8a6a1f !important;
+      max-width: 128px !important;
+    }
+    #printCanvas .node .nm{
+      font-size: .8rem !important;
+      line-height:1.25 !important;
+    }
+    #printCanvas .node .tg{
+      font-size: .62rem !important;
+      line-height:1.3 !important;
     }
     #printCanvas .badge{
       font-size: 1rem !important;
@@ -279,6 +308,9 @@
     }
     #printBranding{
       position:relative; z-index:2;
+      flex: 0 0 auto;
+      width: 100%;
+      box-sizing:border-box;
       margin-top:16px;
       text-align:center;
       font-family:'Noto Naskh Arabic', serif;
@@ -1234,25 +1266,84 @@ function fitView(){
 }
 
 // ---------------- طباعة الشجرة كـ PDF ----------------
-// تطبع الشجرة بحالتها الحالية بالضبط (المطوى يبقى مطويًا، والمفتوح يبقى
-// مفتوحًا)، بحجم صفحة مناسب لأبعادها الفعلية، داخل برواز مزخرف مع بصمة
-// التطبيق ورابط التحميل واسم المصمم.
-function printTree(){
+// تُبنى شجرة الطباعة بمقاييس أضيق ومستقلة تمامًا عن الشجرة التفاعلية على
+// الشاشة (بدون أي تأثير عليها)، لتقليل التمدد الأفقي غير الضروري الذي كان
+// يُجبر الشجرة كلها على التصغير الشديد لتناسب الصفحة.
+const PRINT_UNIT_X = 148;   // بدلاً من 176px فى الشجرة التفاعلية — بحد أدنى يمنع تداخل الخانات المجاورة
+const PRINT_ROW_H = 100;    // بدلاً من 118px فى الشجرة التفاعلية
+const PRINT_X_MARGIN = 70;  // هامش أمان يمنع قطع الخانات القريبة من الحافتين
+
+function buildPrintCanvas(){
   layoutWidth(treeData);
   assignPos(treeData, 0, 0);
-  const totalW = treeData._w * UNIT_X + 40;
+  const totalW = treeData._w * PRINT_UNIT_X + 30 + PRINT_X_MARGIN*2;
   const maxDepth = getMaxDepth(treeData);
-  const totalH = (maxDepth+1) * ROW_H + 60;
+  const totalH = (maxDepth+1) * PRINT_ROW_H + 50;
 
   const printCanvas = document.getElementById('printCanvas');
-  printCanvas.innerHTML = canvas.innerHTML; // نسخ نفس الخانات والخطوط بحالتها المعروضة حاليًا
-  printCanvas.style.position = 'relative';
+  printCanvas.innerHTML = '';
   printCanvas.style.width = totalW + 'px';
   printCanvas.style.height = totalH + 'px';
+  printCanvas.style.position = 'absolute';
+
+  const printSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  printSvg.setAttribute('width', totalW);
+  printSvg.setAttribute('height', totalH);
+  printSvg.setAttribute('viewBox', '0 0 ' + totalW + ' ' + totalH);
+  printSvg.style.position = 'absolute';
+  printSvg.style.top = '0';
+  printSvg.style.left = '0';
+  printSvg.style.overflow = 'visible';
+  printCanvas.appendChild(printSvg);
+
+  const pathParts = [];
+  function walk(n, parent){
+    const px = n._x * PRINT_UNIT_X + PRINT_X_MARGIN;
+    const py = n._y * PRINT_ROW_H + 16;
+
+    if(parent){
+      const ppx = parent._x * PRINT_UNIT_X + PRINT_X_MARGIN;
+      const ppy = parent._y * PRINT_ROW_H + 16 + 46;
+      const midY = (ppy + py) / 2;
+      pathParts.push('M '+ppx+' '+ppy+' C '+ppx+' '+midY+', '+px+' '+midY+', '+px+' '+py);
+    }
+
+    const div = document.createElement('div');
+    const hasKids = n.children && n.children.length;
+    div.className = 'node g' + n.gen + (hasKids ? '' : ' leaf') + (n === treeData ? ' root' : '');
+    div.dataset.cx = px;
+    div.style.left = px + 'px';
+    div.style.top = py + 'px';
+
+    let html = '<div class="badge">ج'+toArabicNum(n.gen)+'</div>';
+    if(n.img) html += '<img class="avatar" src="'+n.img+'" alt="'+n.name+'">';
+    html += '<div class="nm">'+n.name+'</div>';
+    if(n.tag) html += '<div class="tg">'+n.tag+'</div>';
+    div.innerHTML = html;
+    printCanvas.appendChild(div);
+
+    if(hasKids && !n.collapsed){
+      n.children.forEach(c => walk(c, n));
+    }
+  }
+  walk(treeData, null);
+
+  printCanvas.querySelectorAll('.node').forEach(el => {
+    const cx = parseFloat(el.dataset.cx);
+    const w = el.offsetWidth;
+    el.style.left = (cx - w / 2) + 'px';
+  });
+
+  printSvg.innerHTML = pathParts.map(d => '<path d="'+d+'" fill="none" stroke="#8a6a1f" stroke-width="2.4" opacity="0.75"/>').join('');
+
+  return {totalW, totalH};
+}
+
+function printTree(){
+  const {totalW, totalH} = buildPrintCanvas();
 
   // حجم صفحة ثابت (يطابق تناسب البرواز المُستخدم) — والشجرة تُكبَّر أو
-  // تُصغَّر لتملأ المساحة المتاحة داخله قدر الإمكان (بعكس التصميم السابق
-  // الذي كان يُصغّر حجم الورقة نفسها لتحتضن الشجرة).
+  // تُصغَّر لتملأ المساحة المتاحة داخله قدر الإمكان.
   const pageWpx = 1436, pageHpx = 945; // يعادل 380mm × 250mm عند 96dpi
   const sidePadding = 95, topPadding = 110, bottomPadding = 90;
   const titleH = 60, brandingH = 60; // تقدير آمن يشمل هوامش العنوان والبصمة
@@ -1260,11 +1351,16 @@ function printTree(){
   const availH = pageHpx - topPadding - bottomPadding - titleH - brandingH;
   const scale = Math.min(availW/totalW, availH/totalH);
 
+  const printCanvas = document.getElementById('printCanvas');
   const wrap = document.getElementById('printCanvasWrap');
-  wrap.style.width = (totalW*scale) + 'px';
-  wrap.style.height = (totalH*scale) + 'px';
+  wrap.style.width = availW + 'px';
+  wrap.style.height = availH + 'px';
+
+  const scaledW = totalW*scale, scaledH = totalH*scale;
+  printCanvas.style.left = ((availW - scaledW)/2) + 'px';
+  printCanvas.style.top = ((availH - scaledH)/2) + 'px';
   printCanvas.style.transform = 'scale(' + scale + ')';
-  printCanvas.style.transformOrigin = 'top right';
+  printCanvas.style.transformOrigin = 'top left';
 
   // داخل تطبيق أندرويد: window.print() وحدها لا تعمل فى WebView، فنستخدم
   // الجسر الأصلي الذي يستدعي خدمة الطباعة الحقيقية للنظام. خارج التطبيق
