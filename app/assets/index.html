@@ -252,7 +252,7 @@
       position:relative;
       width: 100%;
       height: 100%;
-      padding: 110px 95px 90px;
+      padding: 7.7% 6.6% 6.3%;
       background:#fdfaf1;
       box-sizing:border-box;
       overflow:hidden;
@@ -271,10 +271,10 @@
       flex: 0 0 auto;
       width: 100%;
       text-align:right;
-      margin-right: 100px;
+      margin-right: 8%;
       box-sizing:border-box;
       font-family:'Aref Ruqaa', serif;
-      font-size: 30px;
+      font-size: clamp(20px, 2.2vw, 60px);
       font-weight:700;
       color:#1f4a3d;
       margin-bottom:16px;
@@ -282,6 +282,7 @@
     #printCanvasWrap{
       position:relative; z-index:2; overflow:hidden;
       flex: 1 1 auto;
+      width:100%;
       margin:0 auto;
     }
     #printCanvas{ position:absolute; flex-shrink:0; }
@@ -314,14 +315,20 @@
       margin-top:16px;
       text-align:center;
       font-family:'Noto Naskh Arabic', serif;
-      font-size:13px;
+      font-size: clamp(11px, 1vw, 24px);
       color:#444;
       border-top:1px solid #b8892b;
       padding-top:8px;
       display:flex; align-items:center; justify-content:center; gap:8px;
     }
-    #printBrandIcon{ width:26px; height:26px; border-radius:50%; flex-shrink:0; }
-    @page{ size: 380mm 250mm; margin:0; }
+    #printBrandIcon{ width:1.6vw; height:1.6vw; min-width:16px; min-height:16px; max-width:34px; max-height:34px; border-radius:50%; flex-shrink:0; }
+    /* ملاحظة: تعمّدنا عدم تحديد حجم ورق ثابت هنا (@page size) — لأن ذلك كان
+       يفرض حساب تخطيط الصفحة داخليًا وفق هذا المقاس دائمًا، حتى لو اختار
+       المستخدم أو نظام أندرويد مقاس ورق مختلف فعليًا، فتظهر الشجرة صغيرة
+       وسط مساحة فارغة كبيرة. حجم الورق الفعلي يُحدَّد الآن من نظام الطباعة
+       نفسه (انظر PrintAttributes فى MainActivity.java)، وكل تنسيقنا هنا
+       نسبي (100%) ليتكيف تلقائيًا مع أي مقاس. */
+    @page{ margin:0; }
   }
 
   #splashOverlay{
@@ -660,7 +667,7 @@
           <svg class="lines" id="lines"></svg>
         </div>
       </div>
-      <button id="printTreeBtn" style="display:none;">🖨️ طباعة PDF</button>
+      <button id="printTreeBtn" style="display:none;">🖼️ حفظ / مشاركة الشجرة</button>
       <div class="hint">📱 أدر موبايلك أفقيًا لأفضل عرض — اضغط على أى بطاقة لفتح أو طى أبنائها — استخدم إصبعين للتكبير</div>
     </section>
 
@@ -1265,113 +1272,276 @@ function fitView(){
   applyTransform();
 }
 
-// ---------------- طباعة الشجرة كـ PDF ----------------
-// تُبنى شجرة الطباعة بمقاييس أضيق ومستقلة تمامًا عن الشجرة التفاعلية على
-// الشاشة (بدون أي تأثير عليها)، لتقليل التمدد الأفقي غير الضروري الذي كان
-// يُجبر الشجرة كلها على التصغير الشديد لتناسب الصفحة.
-const PRINT_UNIT_X = 148;   // بدلاً من 176px فى الشجرة التفاعلية — بحد أدنى يمنع تداخل الخانات المجاورة
-const PRINT_ROW_H = 100;    // بدلاً من 118px فى الشجرة التفاعلية
-const PRINT_X_MARGIN = 70;  // هامش أمان يمنع قطع الخانات القريبة من الحافتين
+// ---------------- تصدير الشجرة كصورة (بديل موثوق للطباعة) ----------------
 
-function buildPrintCanvas(){
-  layoutWidth(treeData);
-  assignPos(treeData, 0, 0);
-  const totalW = treeData._w * PRINT_UNIT_X + 30 + PRINT_X_MARGIN*2;
-  const maxDepth = getMaxDepth(treeData);
-  const totalH = (maxDepth+1) * PRINT_ROW_H + 50;
-
-  const printCanvas = document.getElementById('printCanvas');
-  printCanvas.innerHTML = '';
-  printCanvas.style.width = totalW + 'px';
-  printCanvas.style.height = totalH + 'px';
-  printCanvas.style.position = 'absolute';
-
-  const printSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  printSvg.setAttribute('width', totalW);
-  printSvg.setAttribute('height', totalH);
-  printSvg.setAttribute('viewBox', '0 0 ' + totalW + ' ' + totalH);
-  printSvg.style.position = 'absolute';
-  printSvg.style.top = '0';
-  printSvg.style.left = '0';
-  printSvg.style.overflow = 'visible';
-  printCanvas.appendChild(printSvg);
-
-  const pathParts = [];
-  function walk(n, parent){
-    const px = n._x * PRINT_UNIT_X + PRINT_X_MARGIN;
-    const py = n._y * PRINT_ROW_H + 16;
-
-    if(parent){
-      const ppx = parent._x * PRINT_UNIT_X + PRINT_X_MARGIN;
-      const ppy = parent._y * PRINT_ROW_H + 16 + 46;
-      const midY = (ppy + py) / 2;
-      pathParts.push('M '+ppx+' '+ppy+' C '+ppx+' '+midY+', '+px+' '+midY+', '+px+' '+py);
-    }
-
-    const div = document.createElement('div');
-    const hasKids = n.children && n.children.length;
-    div.className = 'node g' + n.gen + (hasKids ? '' : ' leaf') + (n === treeData ? ' root' : '');
-    div.dataset.cx = px;
-    div.style.left = px + 'px';
-    div.style.top = py + 'px';
-
-    let html = '<div class="badge">ج'+toArabicNum(n.gen)+'</div>';
-    if(n.img) html += '<img class="avatar" src="'+n.img+'" alt="'+n.name+'">';
-    html += '<div class="nm">'+n.name+'</div>';
-    if(n.tag) html += '<div class="tg">'+n.tag+'</div>';
-    div.innerHTML = html;
-    printCanvas.appendChild(div);
-
-    if(hasKids && !n.collapsed){
-      n.children.forEach(c => walk(c, n));
+function wrapCanvasText(ctx, text, maxWidth){
+  const words = String(text).split(' ');
+  const lines = [];
+  let cur = '';
+  for(const w of words){
+    const test = cur ? cur + ' ' + w : w;
+    if(ctx.measureText(test).width > maxWidth && cur){
+      lines.push(cur);
+      cur = w;
+    } else {
+      cur = test;
     }
   }
-  walk(treeData, null);
-
-  printCanvas.querySelectorAll('.node').forEach(el => {
-    const cx = parseFloat(el.dataset.cx);
-    const w = el.offsetWidth;
-    el.style.left = (cx - w / 2) + 'px';
-  });
-
-  printSvg.innerHTML = pathParts.map(d => '<path d="'+d+'" fill="none" stroke="#8a6a1f" stroke-width="2.4" opacity="0.75"/>').join('');
-
-  return {totalW, totalH};
+  if(cur) lines.push(cur);
+  return lines;
 }
 
-function printTree(){
-  const {totalW, totalH} = buildPrintCanvas();
+function roundRectPath(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y, x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x, y+h, r);
+  ctx.arcTo(x, y+h, x, y, r);
+  ctx.arcTo(x, y, x+w, y, r);
+  ctx.closePath();
+}
 
-  // حجم صفحة ثابت (يطابق تناسب البرواز المُستخدم) — والشجرة تُكبَّر أو
-  // تُصغَّر لتملأ المساحة المتاحة داخله قدر الإمكان.
-  const pageWpx = 1436, pageHpx = 945; // يعادل 380mm × 250mm عند 96dpi
-  const sidePadding = 95, topPadding = 110, bottomPadding = 90;
-  const titleH = 60, brandingH = 60; // تقدير آمن يشمل هوامش العنوان والبصمة
-  const availW = pageWpx - sidePadding*2;
-  const availH = pageHpx - topPadding - bottomPadding - titleH - brandingH;
-  const scale = Math.min(availW/totalW, availH/totalH);
+async function exportTreeImage(){
+  if (document.fonts && document.fonts.ready) {
+    try { await document.fonts.ready; } catch(e) {}
+  }
 
-  const printCanvas = document.getElementById('printCanvas');
-  const wrap = document.getElementById('printCanvasWrap');
-  wrap.style.width = availW + 'px';
-  wrap.style.height = availH + 'px';
+  layoutWidth(treeData);
+  assignPos(treeData, 0, 0);
+  const maxDepth = getMaxDepth(treeData);
 
-  const scaledW = totalW*scale, scaledH = totalH*scale;
-  printCanvas.style.left = ((availW - scaledW)/2) + 'px';
-  printCanvas.style.top = ((availH - scaledH)/2) + 'px';
-  printCanvas.style.transform = 'scale(' + scale + ')';
-  printCanvas.style.transformOrigin = 'top left';
+  const EXPORT_SCALE = 2; // لدقة صورة عالية عند المشاركة/الطباعة لاحقًا
+  const UNIT_X = 150, ROW_H = 150;
+  const BOX_W = 132, BOX_PAD = 10;
+  const NAME_FONT = 'bold 15px "Noto Naskh Arabic", serif';
+  const TAG_FONT = '11px "Noto Naskh Arabic", serif';
+  const BADGE_FONT = 'bold 13px "Aref Ruqaa", serif';
 
-  // داخل تطبيق أندرويد: window.print() وحدها لا تعمل فى WebView، فنستخدم
-  // الجسر الأصلي الذي يستدعي خدمة الطباعة الحقيقية للنظام. خارج التطبيق
-  // (متصفح عادي) نستخدم window.print() كالمعتاد.
-  setTimeout(() => {
-    if (window.AndroidShare && typeof window.AndroidShare.triggerPrint === 'function') {
-      window.AndroidShare.triggerPrint();
-    } else {
-      window.print();
+  const measureCanvas = document.createElement('canvas');
+  const mctx = measureCanvas.getContext('2d');
+
+  const nodeMeta = new Map();
+  function measure(n){
+    mctx.font = NAME_FONT;
+    const nameLines = wrapCanvasText(mctx, n.name, BOX_W - BOX_PAD*2);
+    let tagLines = [];
+    if(n.tag){
+      mctx.font = TAG_FONT;
+      tagLines = wrapCanvasText(mctx, n.tag, BOX_W - BOX_PAD*2);
     }
-  }, 80);
+    const nameLineH = 18, tagLineH = 14;
+    const h = 26 + nameLines.length*nameLineH + (tagLines.length ? tagLines.length*tagLineH + 4 : 0) + BOX_PAD;
+    nodeMeta.set(n, {nameLines, tagLines, h});
+    if(n.children && !n.collapsed){ n.children.forEach(measure); }
+  }
+  measure(treeData);
+
+  const totalW = treeData._w * UNIT_X + 30 + 160;
+  const maxNodeH = Math.max(...Array.from(nodeMeta.values()).map(m => m.h));
+  const totalH = (maxDepth+1) * ROW_H + maxNodeH + 20;
+
+  const FRAME_PAD_TOP = 130, FRAME_PAD_SIDE = 90, FRAME_PAD_BOTTOM = 110;
+  const TITLE_H = 70, BRANDING_H = 70;
+
+  const W = totalW + FRAME_PAD_SIDE*2;
+  let H = totalH + FRAME_PAD_TOP + FRAME_PAD_BOTTOM + TITLE_H + BRANDING_H;
+
+  // سقف أمان لنسبة عرض:ارتفاع البرواز — بدون هذا، شجرة عريضة جدًا (كل
+  // الفروع مفتوحة) كانت تُنتج صورة نهائية بنسبة تمدد فاحشة (مثلاً 20:1)،
+  // فتظهر زخرفة البرواز نفسها ممطوطة/مكسورة الشكل تمامًا وغير مفهومة.
+  // بفرض حد أقصى معقول لهذه النسبة، تبقى صورة البرواز سليمة الشكل دائمًا،
+  // وتُصغَّر الشجرة نفسها أكثر بدلاً من ذلك لتناسب هذا الإطار المعقول.
+  const MAX_FRAME_ASPECT = 2.3;
+  const minH = W / MAX_FRAME_ASPECT;
+  if (H < minH) H = minH;
+
+  // سقف أمان لحجم الصورة الناتجة: شجرة كبيرة جدًا (كل الفروع مفتوحة) قد
+  // تنتج صورة بعشرات ملايين البكسلات، وهو ما قد يسبب نفاد الذاكرة أو فشل
+  // الرسم على بعض الأجهزة. نقلّل دقة التصدير تلقائيًا إن لزم الأمر لضمان
+  // نجاح العملية دائمًا، حتى لو قلّت حدة الصورة قليلاً فى الحالات القصوى.
+  const MAX_CANVAS_PIXELS = 30_000_000;
+  let exportScale = EXPORT_SCALE;
+  if (W*H*exportScale*exportScale > MAX_CANVAS_PIXELS) {
+    // لا يوجد حد أدنى مفروض هنا عمدًا: الأولوية القصوى هى عدم تجاوز سقف
+    // البكسلات الآمن مهما كانت أبعاد الشجرة (لتفادي نفاد الذاكرة فعليًا)،
+    // حتى لو أدى ذلك لتصغير النص كثيرًا فى الحالات القصوى جدًا.
+    exportScale = Math.sqrt(MAX_CANVAS_PIXELS / (W*H));
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(W*exportScale);
+  canvas.height = Math.round(H*exportScale);
+  const ctx = canvas.getContext('2d');
+  ctx.scale(exportScale, exportScale);
+
+  ctx.fillStyle = '#fdfaf1';
+  ctx.fillRect(0, 0, W, H);
+
+  const frameImg = document.getElementById('printFrameArt');
+  if (frameImg) {
+    await new Promise(res => { if (frameImg.complete) res(); else frameImg.onload = res; });
+    ctx.drawImage(frameImg, 0, 0, W, H);
+  }
+
+  ctx.direction = 'rtl';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#1f4a3d';
+  ctx.font = 'bold 52px "Aref Ruqaa", serif';
+  ctx.fillText('شجرة عائلة خشبه بسمالوط', W / 2, FRAME_PAD_TOP - 45);
+
+  const treeAreaW = W - FRAME_PAD_SIDE*2;
+  const treeAreaH = H - FRAME_PAD_TOP - FRAME_PAD_BOTTOM - TITLE_H - BRANDING_H;
+  const fitScale = Math.min(treeAreaW/totalW, treeAreaH/totalH);
+  const offsetX = FRAME_PAD_SIDE + (treeAreaW - totalW*fitScale)/2;
+  const offsetY = FRAME_PAD_TOP + TITLE_H + (treeAreaH - totalH*fitScale)/2;
+
+  ctx.save();
+  ctx.translate(offsetX, offsetY);
+  ctx.scale(fitScale, fitScale);
+
+  function nodeTop(n){ return n._y * ROW_H + 10; }
+  function nodeCenterX(n){ return n._x * UNIT_X + 80; }
+
+  ctx.strokeStyle = '#8a6a1f';
+  ctx.lineWidth = 2.4;
+  ctx.globalAlpha = 0.75;
+  // خطوط مستقيمة (أفقية ورأسية فقط) بدلاً من المنحنيات: خط رأسي واحد من
+  // أسفل الأب حتى خط أفقي مشترك بعرض كل الأبناء، ثم خط رأسي من هذا الخط
+  // الأفقي لأعلى كل ابن على حدة.
+  function drawLines(n){
+    if(n.children && !n.collapsed && n.children.length){
+      const meta = nodeMeta.get(n);
+      const px = nodeCenterX(n), py = nodeTop(n) + meta.h;
+      const childTop = nodeTop(n.children[0]);
+      const busY = (py + childTop) / 2;
+
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.lineTo(px, busY);
+      ctx.stroke();
+
+      const xs = n.children.map(nodeCenterX);
+      const firstX = Math.min(...xs), lastX = Math.max(...xs);
+      if (n.children.length > 1) {
+        ctx.beginPath();
+        ctx.moveTo(firstX, busY);
+        ctx.lineTo(lastX, busY);
+        ctx.stroke();
+      }
+
+      n.children.forEach(c => {
+        const cx = nodeCenterX(c), cy = nodeTop(c);
+        ctx.beginPath();
+        ctx.moveTo(cx, busY);
+        ctx.lineTo(cx, cy);
+        ctx.stroke();
+      });
+
+      n.children.forEach(c => drawLines(c));
+    }
+  }
+  drawLines(treeData);
+  ctx.globalAlpha = 1;
+
+  function drawNode(n){
+    const meta = nodeMeta.get(n);
+    const cx = nodeCenterX(n), top = nodeTop(n);
+    const x = cx - BOX_W/2;
+    const isRoot = n === treeData;
+
+    ctx.fillStyle = '#fdf6e3';
+    ctx.strokeStyle = isRoot ? '#1f4a3d' : '#8a6a1f';
+    ctx.lineWidth = isRoot ? 3 : 2.2;
+    roundRectPath(ctx, x, top, BOX_W, meta.h, 10);
+    ctx.fill();
+    ctx.stroke();
+
+    const badgeText = 'ج' + toArabicNum(n.gen);
+    ctx.font = BADGE_FONT;
+    ctx.textAlign = 'center';
+    const badgeW = ctx.measureText(badgeText).width + 16;
+    const badgeX = cx + BOX_W/2 - badgeW - 6;
+    const badgeY = top - 10;
+    roundRectPath(ctx, badgeX, badgeY, badgeW, 22, 11);
+    ctx.fillStyle = '#1f4a3d';
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.fillText(badgeText, badgeX + badgeW/2, badgeY + 16);
+
+    ctx.fillStyle = '#2b2118';
+    ctx.font = NAME_FONT;
+    let ty = top + 28;
+    meta.nameLines.forEach(line => { ctx.fillText(line, cx, ty); ty += 18; });
+    if(meta.tagLines.length){
+      ctx.fillStyle = '#6b6255';
+      ctx.font = TAG_FONT;
+      ty += 2;
+      meta.tagLines.forEach(line => { ctx.fillText(line, cx, ty); ty += 14; });
+    }
+  }
+  function drawNodes(n){
+    drawNode(n);
+    if(n.children && !n.collapsed){ n.children.forEach(drawNodes); }
+  }
+  drawNodes(treeData);
+  ctx.restore();
+
+  const brandY = H - FRAME_PAD_BOTTOM;
+  ctx.strokeStyle = '#b8892b';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(FRAME_PAD_SIDE, brandY - 14);
+  ctx.lineTo(W - FRAME_PAD_SIDE, brandY - 14);
+  ctx.stroke();
+
+  const brandText = 'شجرة عائلة خشبه بسمالوط — تطبيق الجوال: play.google.com/store/apps/details?id=com.khashbah.familytree — تصميم: عمرو خشبه';
+  ctx.font = '13px "Noto Naskh Arabic", serif';
+  ctx.direction = 'rtl';
+  const iconSize = 26;
+  const textW = ctx.measureText(brandText).width;
+  const groupStart = (W - textW - iconSize - 8) / 2;
+
+  const brandIcon = document.getElementById('printBrandIcon');
+  if (brandIcon) {
+    await new Promise(res => { if (brandIcon.complete) res(); else brandIcon.onload = res; });
+    ctx.drawImage(brandIcon, groupStart, brandY, iconSize, iconSize);
+  }
+  ctx.fillStyle = '#444';
+  ctx.textAlign = 'left';
+  ctx.fillText(brandText, groupStart + iconSize + 8, brandY + 19);
+
+  return canvas.toDataURL('image/jpeg', 0.92);
+}
+
+async function printTree(){
+  const btn = document.getElementById('printTreeBtn');
+  const originalLabel = btn.textContent;
+  btn.textContent = '⏳ جارٍ التجهيز...';
+  btn.style.pointerEvents = 'none';
+  try {
+    const dataUrl = await exportTreeImage();
+    const filename = 'شجرة-عائلة-خشبه-بسمالوط.jpg';
+    const shareTitle = 'شجرة عائلة خشبه بسمالوط';
+
+    if (window.AndroidShare && typeof window.AndroidShare.shareImageBase64 === 'function') {
+      const base64 = dataUrl.split(',')[1] || dataUrl;
+      window.AndroidShare.shareImageBase64(base64, filename, shareTitle);
+    } else {
+      // خارج التطبيق (متصفح عادي): تنزيل الصورة مباشرة
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+  } catch (err) {
+    alert('تعذّر إنشاء صورة الشجرة، حاول مرة أخرى.');
+  } finally {
+    btn.textContent = originalLabel;
+    btn.style.pointerEvents = '';
+  }
 }
 
 document.getElementById('printTreeBtn').addEventListener('click', printTree);
