@@ -1,9 +1,12 @@
 package com.khashbah.familytree;
 
+import android.content.Context;
 import android.content.Intent;
 import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Bundle;
+import android.print.PrintAttributes;
+import android.print.PrintManager;
 import android.util.Base64;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -17,9 +20,6 @@ import androidx.core.content.FileProvider;
 
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.FileInputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
 
 public class MainActivity extends android.app.Activity {
 
@@ -115,45 +115,44 @@ public class MainActivity extends android.app.Activity {
             });
         }
 
-        // مشاركة التطبيق نفسه: يستخرج ملف الـ APK المثبت فعليًا على الجهاز
-        // ويشاركه مباشرة، حتى يقدر الشخص المُستقبِل تثبيت التطبيق فورًا
-        // دون الحاجة لأي رابط تنزيل خارجي.
+        // مشاركة التطبيق نفسه: تشارك نصًا يتضمن رابط التطبيق على متجر Play.
+        // هذه الطريقة (وليس مشاركة ملف الـ APK مباشرة) هى الصحيحة بعد نشر
+        // التطبيق فعليًا على المتجر، لأن الرابط سيعمل تلقائيًا فور النشر
+        // (باستخدام نفس applicationId المحدد فى build.gradle)، ولا يحتاج أى
+        // تعديل إضافى فى الكود عند النشر.
         @JavascriptInterface
-        public void shareApk(final String caption) {
+        public void shareText(final String text) {
             runOnUiThread(() -> {
                 try {
-                    String apkPath = getPackageManager()
-                            .getApplicationInfo(getPackageName(), 0).sourceDir;
-                    File srcFile = new File(apkPath);
-                    File dir = new File(getCacheDir(), "shared");
-                    if (!dir.exists()) dir.mkdirs();
-                    File destFile = new File(dir, "شجرة_عائلة_خشبه.apk");
-
-                    InputStream in = new FileInputStream(srcFile);
-                    OutputStream out = new FileOutputStream(destFile);
-                    byte[] buffer = new byte[8192];
-                    int len;
-                    while ((len = in.read(buffer)) > 0) {
-                        out.write(buffer, 0, len);
-                    }
-                    in.close();
-                    out.close();
-
-                    Uri contentUri = FileProvider.getUriForFile(
-                            MainActivity.this,
-                            "com.khashbah.familytree.fileprovider",
-                            destFile);
-
                     Intent shareIntent = new Intent(Intent.ACTION_SEND);
-                    shareIntent.setType("application/vnd.android.package-archive");
-                    shareIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
-                    if (caption != null && !caption.isEmpty()) {
-                        shareIntent.putExtra(Intent.EXTRA_TEXT, caption);
-                    }
-                    shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    shareIntent.setType("text/plain");
+                    shareIntent.putExtra(Intent.EXTRA_TEXT, text);
                     startActivity(Intent.createChooser(shareIntent, "مشاركة التطبيق"));
                 } catch (Exception e) {
                     // تجاهل بصمت — الصفحة نفسها تعرض رسالة بديلة عند الفشل
+                }
+            });
+        }
+
+        // طباعة حقيقية عبر أندرويد: استدعاء window.print() من جافاسكريبت
+        // وحده لا يعمل إطلاقًا داخل WebView (بعكس المتصفح العادي) — فهو
+        // يحتاج ربطًا صريحًا بخدمة الطباعة الخاصة بالنظام (PrintManager).
+        // هذه الدالة هى الجسر الذي يجعل زر "طباعة PDF" يعمل فعليًا داخل
+        // التطبيق، باستخدام نفس محرك الطباعة فى WebView الذي يحترم تنسيق
+        // @media print الموجود بالصفحة (البرواز، العنوان، حجم الورقة...).
+        @JavascriptInterface
+        public void triggerPrint() {
+            runOnUiThread(() -> {
+                try {
+                    PrintManager printManager =
+                            (PrintManager) getSystemService(Context.PRINT_SERVICE);
+                    String jobName = "شجرة عائلة خشبه بسمالوط";
+                    android.print.PrintDocumentAdapter printAdapter =
+                            webView.createPrintDocumentAdapter(jobName);
+                    printManager.print(jobName, printAdapter,
+                            new PrintAttributes.Builder().build());
+                } catch (Exception e) {
+                    // تجاهل بصمت — لا توجد خدمة طباعة متاحة على هذا الجهاز
                 }
             });
         }
