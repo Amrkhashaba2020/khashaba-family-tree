@@ -149,8 +149,16 @@ public class MainActivity extends android.app.Activity {
                     String jobName = "شجرة عائلة خشبه بسمالوط";
                     android.print.PrintDocumentAdapter printAdapter =
                             webView.createPrintDocumentAdapter(jobName);
-                    printManager.print(jobName, printAdapter,
-                            new PrintAttributes.Builder().build());
+                    // نحدد حجم ورقة افتراضي يطابق تصميم البرواز (يقارب نسبة
+                    // 380×250مم) — بحيث تكون الطباعة الافتراضية (بدون تغيير
+                    // المستخدم لحجم الورق يدويًا) مضبوطة تمامًا من أول مرة.
+                    PrintAttributes.MediaSize khashbahSize = new PrintAttributes.MediaSize(
+                            "khashbah_tree", "Khashbah Tree", 14960, 9840);
+                    PrintAttributes attrs = new PrintAttributes.Builder()
+                            .setMediaSize(khashbahSize)
+                            .setColorMode(PrintAttributes.COLOR_MODE_COLOR)
+                            .build();
+                    printManager.print(jobName, printAdapter, attrs);
                 } catch (Exception e) {
                     // تجاهل بصمت — لا توجد خدمة طباعة متاحة على هذا الجهاز
                 }
