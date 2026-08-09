@@ -533,6 +533,7 @@
     top: 28px !important;
     left: 8px !important;
     width: 205px;
+    height: 24px;
     z-index: 10;
     gap: 3px;
     align-items: center;
@@ -544,7 +545,11 @@
     padding: 0;
     box-sizing: border-box;
     transform-origin: top left;
-    transform: rotate(90deg) translate(0, -100%);
+    /* بكسل ثابت بدل -100% حتى لا يعتمد الإزاحة على ارتفاع
+       العناصر الفعلي الذي قد يختلف قليلاً بين المتصفحات (كما في
+       تصفح السفاري على التابلت)، وهو ما كان يدفع زر الخروج للأعلى
+       ويقصّه عن حافة الشاشة. */
+    transform: rotate(90deg) translate(0, -24px);
   }
   .tree-fullscreen #toolbarWrap .toolbar-group{
     display: contents !important;
@@ -552,10 +557,15 @@
   .tree-fullscreen #toolbarWrap button{
     font-size: .55rem !important;
     padding: 4px 6px !important;
+    height: 24px;
+    line-height: 1 !important;
+    box-sizing: border-box !important;
+    -webkit-appearance: none;
+    appearance: none;
     white-space: nowrap;
   }
   .tree-fullscreen #toolbarWrap button.icon{
-    width: 20px; height: 20px; padding: 0 !important; flex-shrink: 0; font-size:.6rem !important;
+    width: 20px; height: 24px; padding: 0 !important; flex-shrink: 0; font-size:.6rem !important;
   }
   .tree-fullscreen #fullscreenBtn{ display:none !important; }
   .tree-fullscreen #exitFullscreenBtn{ order:6 !important; }
@@ -702,7 +712,7 @@
         </div>
       </div>
       <!-- تم إلغاء زر حفظ/مشاركة الشجرة بناءً على طلب المستخدم -->
-      <div class="hint">📱 أدر موبايلك أفقيًا لأفضل عرض — اضغط على أى بطاقة لفتح أو طى أبنائها — استخدم إصبعين للتكبير</div>
+      <div class="hint">📱 اضغط وضع ملئ الشاشه لأفضل عرض — اضغط على أى بطاقة لفتح أو طى أبنائها — استخدم إصبعين للتكبير</div>
     </section>
 
     <section class="card">
