@@ -420,17 +420,18 @@
     align-items: flex-start;
     position: absolute !important;
     bottom: 8px !important;
-    right: 216px !important;
+    left: 8px !important;
     width: auto;
     z-index: 10;
     background: none;
     border: none;
     padding: 0;
-    gap: 1px;
+    gap: 5px;
     margin: 0 !important;
     box-sizing: border-box;
-    transform-origin: bottom right;
-    transform: rotate(90deg) translate(0, 100%);
+    transform-origin: bottom left;
+    transform: rotate(90deg) translate(-100%, 0);
+    font-size: .5625rem !important;
   }
   .tree-fullscreen .legend span{
     display: inline-flex;
@@ -1113,13 +1114,13 @@ const treeData = {
   ]
 };
 
-// default open/collapsed state: show up to generation 2 expanded, collapse deeper
-(function setDefaults(n){
+// default open/collapsed state: collapse everything except the root (matches "طى الكل")
+(function setDefaults(n, depth){
   if(n.children && n.children.length){
-    n.collapsed = n.gen >= 3;
-    n.children.forEach(setDefaults);
+    n.collapsed = depth >= 1;
+    n.children.forEach(c => setDefaults(c, depth+1));
   }
-})(treeData);
+})(treeData, 0);
 treeData.collapsed = false; // root always open
 
 // ---------------- layout (VERTICAL: root at top, generations flow downward) ----------------
