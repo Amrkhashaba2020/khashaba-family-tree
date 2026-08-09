@@ -24,7 +24,6 @@
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{margin:0;padding:0;}
-  html{ -webkit-text-size-adjust:100%; -moz-text-size-adjust:100%; text-size-adjust:100%; }
   body{
     background:
       radial-gradient(1200px 600px at 10% -10%, rgba(31,74,61,0.06), transparent 60%),
@@ -553,8 +552,7 @@
   .tree-fullscreen #toolbarWrap button{
     font-size: .55rem !important;
     padding: 4px 6px !important;
-    white-space: nowrap !important;
-    flex-shrink: 0 !important;
+    white-space: nowrap;
   }
   .tree-fullscreen #toolbarWrap button.icon{
     width: 20px; height: 20px; padding: 0 !important; flex-shrink: 0; font-size:.6rem !important;
@@ -668,12 +666,12 @@
       <h2 id="treeTitle">شجرة عائلة خشبه بسمالوط — التفاعلية</h2>
 
       <div class="legend" id="genLegend">
-        <span data-gen="1"><i style="background:var(--green)"></i> ج١: <b class="gen-count"></b></span>
-        <span data-gen="2"><i style="background:var(--green-soft)"></i> ج٢: <b class="gen-count"></b></span>
-        <span data-gen="3"><i style="background:#4a7a52"></i> ج٣: <b class="gen-count"></b></span>
-        <span data-gen="4"><i style="background:#8a9a3f"></i> ج٤: <b class="gen-count"></b></span>
-        <span data-gen="5"><i style="background:var(--gold)"></i> ج٥: <b class="gen-count"></b></span>
-        <span data-gen="6"><i style="background:#c07a3a"></i> ج٦: <b class="gen-count"></b></span>
+        <span data-gen="1"><i style="background:var(--green)"></i> ج١ <b class="gen-count"></b></span>
+        <span data-gen="2"><i style="background:var(--green-soft)"></i> ج٢ <b class="gen-count"></b></span>
+        <span data-gen="3"><i style="background:#4a7a52"></i> ج٣ <b class="gen-count"></b></span>
+        <span data-gen="4"><i style="background:#8a9a3f"></i> ج٤ <b class="gen-count"></b></span>
+        <span data-gen="5"><i style="background:var(--gold)"></i> ج٥ <b class="gen-count"></b></span>
+        <span data-gen="6"><i style="background:#c07a3a"></i> ج٦ <b class="gen-count"></b></span>
       </div>
 
       <div class="tree-toolbar tree-toolbar-wrap" id="toolbarWrap">
@@ -704,7 +702,7 @@
         </div>
       </div>
       <!-- تم إلغاء زر حفظ/مشاركة الشجرة بناءً على طلب المستخدم -->
-      <div class="hint">📱 اضغط وضع ملء الشاشة لأفضل عرض — اضغط على أى بطاقة لفتح أو طى أبنائها — استخدم إصبعين للتكبير</div>
+      <div class="hint">📱 أدر موبايلك أفقيًا لأفضل عرض — اضغط على أى بطاقة لفتح أو طى أبنائها — استخدم إصبعين للتكبير</div>
     </section>
 
     <section class="card">
@@ -1126,7 +1124,7 @@ const treeData = {
 treeData.collapsed = false; // root always open
 
 // ---------------- layout (VERTICAL: root at top, generations flow downward) ----------------
-const UNIT_X = 176, ROW_H = 118, NODE_H_APPROX = 60;
+const UNIT_X = 176, ROW_H = 168, NODE_H_APPROX = 100;
 
 function layoutWidth(n){
   if(!n.children || n.children.length===0 || n.collapsed){ n._w = 1; return 1; }
