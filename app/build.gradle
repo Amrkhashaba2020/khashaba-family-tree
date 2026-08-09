@@ -3,11 +3,11 @@ plugins {
 }
 
 android {
-    namespace 'com.khashbah.familytree'
+    namespace 'khashaba.family.tree'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.khashbah.familytree"
+        applicationId "khashaba.family.tree"
         minSdk 21
         targetSdk 34
         versionCode 1
