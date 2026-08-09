@@ -1,4 +1,4 @@
-package com.khashbah.familytree;
+package khashaba.family.tree;
 
 import android.content.Context;
 import android.content.Intent;
@@ -98,7 +98,7 @@ public class MainActivity extends android.app.Activity {
 
                     Uri contentUri = FileProvider.getUriForFile(
                             MainActivity.this,
-                            "com.khashbah.familytree.fileprovider",
+                            "khashaba.family.tree.fileprovider",
                             file);
 
                     Intent shareIntent = new Intent(Intent.ACTION_SEND);
