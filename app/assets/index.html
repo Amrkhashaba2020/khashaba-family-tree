@@ -1360,7 +1360,11 @@ function render(){
       // خطوط وصل مستقيمة (أفقية ورأسية فقط): خط رأسي واحد من أسفل الأب
       // حتى خط أفقي مشترك بعرض كل الأبناء، ثم خط رأسي من هذا الخط لأعلى
       // كل ابن على حدة — بدلاً من المنحنى المفرد لكل زوج أب/ابن.
-      const parentBottomY = py + NODE_H_APPROX;
+      // نستخدم الارتفاع الفعلى المرسوم للخانة (وليس رقمًا تقريبيًا ثابتًا)
+      // حتى يبدأ الخط بالضبط من أسفل حدود الخانة الحقيقية مهما اختلف
+      // ارتفاعها بسبب طول النص، فلا تظهر فجوة بين الخانة وبداية الخط.
+      const actualNodeH = div.offsetHeight || NODE_H_APPROX;
+      const parentBottomY = py + actualNodeH;
       const childTopY = n.children[0]._y * ROW_H + 20;
       const busY = (parentBottomY + childTopY) / 2;
 
