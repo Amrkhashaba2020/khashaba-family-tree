@@ -108,8 +108,6 @@
   .tree-toolbar button:active{transform:scale(0.95);}
 
   .legend{display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px; font-size:.72rem; justify-content:center;}
-  .legend-title{text-align:right; font-weight:700; font-size:.85rem; color:var(--ink); margin:0 0 6px;}
-  .legend span.legend-heading{ display:none; }
   .legend span{display:inline-flex; align-items:center; gap:4px; background:var(--panel); border:1px solid var(--gold-soft); border-radius:20px; padding:2px 8px;}
   .legend i{width:8px;height:8px;border-radius:50%;display:inline-block;}
 
@@ -136,7 +134,6 @@
     will-change:transform;
   }
   svg.lines{position:absolute; top:0; left:0; overflow:visible; pointer-events:none;}
-  .conn-line{position:absolute; background:var(--line); pointer-events:none; z-index:0;}
   .node{
     position:absolute;
     width:max-content;
@@ -451,16 +448,7 @@
     margin: 0;
     color: var(--ink-soft);
   }
-  .tree-fullscreen .legend .legend-heading{
-    display: inline-flex !important;
-    font-weight: 700;
-    margin-bottom: 3px;
-    color: var(--ink);
-  }
   .tree-fullscreen .hint{
-    display: none !important;
-  }
-  .tree-fullscreen .legend-title{
     display: none !important;
   }
   .tree-fullscreen .viewport {
@@ -677,9 +665,7 @@
     <section class="card" id="treeSection">
       <h2 id="treeTitle">شجرة عائلة خشبه بسمالوط — التفاعلية</h2>
 
-      <div class="legend-title">عدد الأجيال</div>
       <div class="legend" id="genLegend">
-        <span class="legend-heading">إحصائيات الأجيال :</span>
         <span data-gen="1"><i style="background:var(--green)"></i> ج١ <b class="gen-count"></b></span>
         <span data-gen="2"><i style="background:var(--green-soft)"></i> ج٢ <b class="gen-count"></b></span>
         <span data-gen="3"><i style="background:#4a7a52"></i> ج٣ <b class="gen-count"></b></span>
@@ -712,7 +698,7 @@
 
       <div class="viewport" id="viewport">
         <div class="canvas" id="canvas">
-          <svg class="lines" id="lines" shape-rendering="geometricPrecision"></svg>
+          <svg class="lines" id="lines"></svg>
         </div>
       </div>
       <!-- تم إلغاء زر حفظ/مشاركة الشجرة بناءً على طلب المستخدم -->
@@ -1331,7 +1317,7 @@ function render(){
   nodesToRemove.forEach(el => el.remove());
   svg.innerHTML = '';
 
-  const lineRects = [];
+  const pathParts = [];
   function walk(n, parent){
     const px = n._x * UNIT_X;
     const py = n._y * ROW_H + 20;
@@ -1361,30 +1347,25 @@ function render(){
     canvas.appendChild(div);
 
     if(hasKids && !n.collapsed){
-      // خطوط وصل مستقيمة (أفقية ورأسية فقط): مستطيلات <div> بلون خلفية صلب
-      // بدل مسارات SVG. أثبت بصريًا وبيمنع أي مشاكل antialiasing/تقطيع
-      // بتظهر مع خطوط SVG الرفيعة عند تكبير/تصغير الشجرة باللمس على الموبايل.
-      const parentBottomY = Math.round(py + NODE_H_APPROX);
-      const childTopY = Math.round(n.children[0]._y * ROW_H + 20);
-      const busY = Math.round((parentBottomY + childTopY) / 2);
-      const pxr = Math.round(px);
-      const LW = 3; // سمك الخط بالبكسل
+      // خطوط وصل مستقيمة (أفقية ورأسية فقط): خط رأسي واحد من أسفل الأب
+      // حتى خط أفقي مشترك بعرض كل الأبناء، ثم خط رأسي من هذا الخط لأعلى
+      // كل ابن على حدة — بدلاً من المنحنى المفرد لكل زوج أب/ابن.
+      const parentBottomY = py + NODE_H_APPROX;
+      const childTopY = n.children[0]._y * ROW_H + 20;
+      const busY = (parentBottomY + childTopY) / 2;
 
-      // النزول من أسفل الأب حتى الخط الأفقي
-      lineRects.push({x: pxr - LW/2, y: parentBottomY, w: LW, h: (busY - parentBottomY) + LW});
+      pathParts.push('M '+px+' '+parentBottomY+' L '+px+' '+busY);
 
       if(n.children.length > 1){
-        const xs = n.children.map(c => Math.round(c._x * UNIT_X));
+        const xs = n.children.map(c => c._x * UNIT_X);
         const firstX = Math.min(...xs), lastX = Math.max(...xs);
-        // الخط الأفقي المشترك بعرض كل الأبناء
-        lineRects.push({x: firstX - LW/2, y: busY - LW/2, w: (lastX - firstX) + LW, h: LW});
+        pathParts.push('M '+firstX+' '+busY+' L '+lastX+' '+busY);
       }
 
       n.children.forEach(c => {
-        const cx = Math.round(c._x * UNIT_X);
-        const cy = Math.round(c._y * ROW_H + 20);
-        // النزول من الخط الأفقي حتى أعلى كل ابن
-        lineRects.push({x: cx - LW/2, y: busY - LW/2, w: LW, h: (cy - busY) + LW});
+        const cx = c._x * UNIT_X;
+        const cy = c._y * ROW_H + 20;
+        pathParts.push('M '+cx+' '+busY+' L '+cx+' '+cy);
       });
 
       n.children.forEach(c => walk(c, n));
@@ -1400,18 +1381,7 @@ function render(){
     el.style.left = (cx - w / 2) + 'px';
   });
 
-  svg.innerHTML = '';
-  const lineFrag = document.createDocumentFragment();
-  lineRects.forEach(r => {
-    const d = document.createElement('div');
-    d.className = 'conn-line';
-    d.style.left = r.x + 'px';
-    d.style.top = r.y + 'px';
-    d.style.width = r.w + 'px';
-    d.style.height = r.h + 'px';
-    lineFrag.appendChild(d);
-  });
-  canvas.insertBefore(lineFrag, canvas.firstChild);
+  svg.innerHTML = pathParts.map(d => '<path d="'+d+'" fill="none" stroke="var(--line)" stroke-width="2" opacity="0.6"/>').join('');
 
   applyTransform();
 }
