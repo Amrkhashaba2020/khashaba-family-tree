@@ -10,6 +10,10 @@ import android.print.PrintManager;
 import android.util.Base64;
 import android.view.ViewGroup;
 import android.view.Window;
+import android.view.WindowManager;
+import java.security.NoSuchAlgorithmException;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -33,6 +37,7 @@ public class MainActivity extends android.app.Activity {
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         super.onCreate(savedInstanceState);
 
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE);
         webView = new WebView(this);
         webView.setLayoutParams(new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -113,6 +118,25 @@ public class MainActivity extends android.app.Activity {
                     // تجاهل بصمت — الصفحة نفسها تعرض رسالة بديلة عند الفشل
                 }
             });
+        }
+
+
+        // التحقق يتم Native عبر PBKDF2؛ لا يوجد الرقم السري كنص داخل التطبيق.
+        @JavascriptInterface
+        public boolean verifyFamilyPassword(final String candidate) {
+            if (candidate == null || candidate.length() > 64) return false;
+            final byte[] salt = new byte[] { (byte) 0xc9, (byte) 0xb4, (byte) 0x0b, (byte) 0xdf, (byte) 0x4d, (byte) 0x54, (byte) 0x82, (byte) 0x9e, (byte) 0x63, (byte) 0x82, (byte) 0xa8, (byte) 0xdb, (byte) 0x7b, (byte) 0x18, (byte) 0x24, (byte) 0x75 };
+            final byte[] expected = new byte[] { (byte) 0xcc, (byte) 0xe5, (byte) 0xbb, (byte) 0xa0, (byte) 0x29, (byte) 0x21, (byte) 0xcb, (byte) 0x3c, (byte) 0x01, (byte) 0xb0, (byte) 0x6b, (byte) 0xe5, (byte) 0xfa, (byte) 0x21, (byte) 0xc9, (byte) 0x79, (byte) 0xc8, (byte) 0xa6, (byte) 0x2c, (byte) 0x75, (byte) 0xa7, (byte) 0xbf, (byte) 0x7b, (byte) 0x9a, (byte) 0x3b, (byte) 0xa9, (byte) 0x6d, (byte) 0xa3, (byte) 0xa5, (byte) 0x15, (byte) 0x85, (byte) 0x16 };
+            try {
+                PBEKeySpec spec = new PBEKeySpec(candidate.toCharArray(), salt, 220000, 256);
+                byte[] actual = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).getEncoded();
+                if (actual.length != expected.length) return false;
+                int diff = 0;
+                for (int i = 0; i < actual.length; i++) diff |= actual[i] ^ expected[i];
+                return diff == 0;
+            } catch (Exception e) {
+                return false;
+            }
         }
 
         // مشاركة التطبيق نفسه: تشارك نصًا يتضمن رابط التطبيق على متجر Play.
