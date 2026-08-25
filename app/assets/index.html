@@ -2415,33 +2415,33 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <script id="privacy-lock-script">
 (function(){
-  const PASSWORD = 'Amr1982';
   const modal = document.getElementById('privacyModal');
   const input = document.getElementById('privacyPasswordInput');
   const error = document.getElementById('privacyError');
   const submit = document.getElementById('privacySubmitBtn');
   const cancel = document.getElementById('privacyCancelBtn');
-  let requestedSection = null;
   const overlays = () => document.querySelectorAll('.privacy-lock-overlay');
-  function openModal(section){
-    requestedSection = section; error.textContent = ''; input.value = '';
-    modal.classList.add('open'); setTimeout(() => input.focus(), 30);
-  }
-  function closeModal(){ modal.classList.remove('open'); requestedSection = null; }
+  function openModal(){ error.textContent = ''; input.value = ''; modal.classList.add('open'); setTimeout(() => input.focus(), 30); }
+  function closeModal(){ modal.classList.remove('open'); }
   function unlock(){
-    if (input.value !== PASSWORD) { error.textContent = 'الرقم السري غير صحيح، حاول مرة أخرى.'; input.select(); return; }
-    sessionStorage.setItem('familySectionsUnlocked', '1');
+    if (!window.AndroidShare || typeof window.AndroidShare.verifyFamilyPassword !== 'function') {
+      error.textContent = 'لا يمكن التحقق في هذه النسخة.'; return;
+    }
+    submit.disabled = true;
+    let valid = false;
+    try { valid = window.AndroidShare.verifyFamilyPassword(input.value); } catch (e) { valid = false; }
+    submit.disabled = false;
+    if (!valid) { error.textContent = 'الرقم السري غير صحيح، حاول مرة أخرى.'; input.select(); return; }
     overlays().forEach(el => el.remove()); closeModal();
   }
   document.querySelectorAll('.privacy-lock-overlay').forEach(overlay => {
-    overlay.addEventListener('click', e => { if (e.target.closest('button') || e.currentTarget === e.target) openModal(overlay.dataset.protected); });
-    overlay.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openModal(overlay.dataset.protected); } });
+    overlay.addEventListener('click', e => { if (e.target.closest('button') || e.currentTarget === e.target) openModal(); });
+    overlay.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openModal(); } });
   });
   submit.addEventListener('click', unlock);
   input.addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
   cancel.addEventListener('click', closeModal);
   modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
-  if (sessionStorage.getItem('familySectionsUnlocked') === '1') overlays().forEach(el => el.remove());
 })();
 </script>
 
