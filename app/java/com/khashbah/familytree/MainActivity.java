@@ -9,8 +9,10 @@ import android.print.PrintAttributes;
 import android.print.PrintManager;
 import android.util.Base64;
 import android.view.ViewGroup;
+import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
+import android.os.Build;
 import java.security.NoSuchAlgorithmException;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
@@ -28,6 +30,7 @@ import java.io.FileOutputStream;
 public class MainActivity extends android.app.Activity {
 
     private WebView webView;
+    private boolean immersiveFullscreen = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -84,6 +87,7 @@ public class MainActivity extends android.app.Activity {
         // من جافاسكريبت، فيقوم أندرويد بفتح قائمة المشاركة الأصلية للجهاز
         // (بدلاً من محاولة استخدام Web Share API غير المدعومة داخل WebView).
         webView.addJavascriptInterface(new AndroidShareBridge(), "AndroidShare");
+        webView.addJavascriptInterface(new AndroidFullscreenBridge(), "AndroidFullscreen");
 
         webView.loadUrl("file:///android_asset/index.html");
     }
@@ -190,13 +194,60 @@ public class MainActivity extends android.app.Activity {
         }
     }
 
+
+    private class AndroidFullscreenBridge {
+        @JavascriptInterface
+        public void enterImmersive() {
+            runOnUiThread(() -> {
+                immersiveFullscreen = true;
+                applyImmersiveFlags();
+            });
+        }
+
+        @JavascriptInterface
+        public void exitImmersive() {
+            runOnUiThread(() -> {
+                immersiveFullscreen = false;
+                getWindow().getDecorView().setSystemUiVisibility(0);
+            });
+        }
+    }
+
+    private void applyImmersiveFlags() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            getWindow().getInsetsController().hide(android.view.WindowInsets.Type.systemBars());
+            getWindow().getInsetsController().setSystemBarsBehavior(
+                    android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+        } else {
+            getWindow().getDecorView().setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                            | View.SYSTEM_UI_FLAG_FULLSCREEN
+                            | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                            | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+        }
+    }
+
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
     }
 
     @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus && immersiveFullscreen) applyImmersiveFlags();
+    }
+
+    @Override
     public void onBackPressed() {
+        if (immersiveFullscreen) {
+            immersiveFullscreen = false;
+            getWindow().getDecorView().setSystemUiVisibility(0);
+            webView.evaluateJavascript("if(window.exitTreeFullscreenFromNative){window.exitTreeFullscreenFromNative();}", null);
+            return;
+        }
         if (webView.canGoBack()) {
             webView.goBack();
         } else {
