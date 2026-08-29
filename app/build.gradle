@@ -4,14 +4,14 @@ plugins {
 
 android {
     namespace 'khashaba.family.tree'
-    compileSdk 35
+    compileSdk 36
 
     defaultConfig {
         applicationId "khashaba.family.tree"
         minSdk 21
-        targetSdk 35
-        versionCode 3
-        versionName "1.2"
+        targetSdk 36
+        versionCode 4
+        versionName "1.3"
     }
 
     // بيانات التوقيع تُقرأ من متغيرات البيئة (مضبوطة فى GitHub Secrets عند
